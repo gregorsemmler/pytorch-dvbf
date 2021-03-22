@@ -1,0 +1,16 @@
+Pillow==8.0.1
+albumentations~=0.5.2
+cloudpickle==1.6.0
+dataclasses==0.8
+future==0.18.2
+gym==0.17.3
+mnist~=0.2.2
+numpy==1.18.0
+opencv-python==4.4.0.42
+pyglet==1.5.0
+scipy==1.5.4
+tensorboard
+torch==1.7.0
+torchsummary==1.5.1
+torchvision==0.8.1
+typing-extensions==3.7.4.3
