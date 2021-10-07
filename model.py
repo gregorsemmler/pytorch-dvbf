@@ -653,7 +653,6 @@ class DeepVariationalBayesFilter(nn.Module):
 
     def initialize_matrices(self):
         for idx in range(self.num_matrices):
-            # TODO test different initializations as well
             a_m = nn.Parameter(torch.Tensor(self.latent_dim, self.latent_dim))
             init.kaiming_uniform_(a_m)
             self.register_parameter(f"A_{idx}", a_m)
@@ -727,96 +726,3 @@ class DeepVariationalBayesFilter(nn.Module):
             w = torch.randn((1, self.latent_dim)).to(device)
         z = self.get_next_z(z, w, u)
         return self.decoder(self.decoder_input(z).view((-1,) + self.decoder_input_size)), z
-
-
-def vae_experiments():
-    num_in_channels = 3
-    im_size = (64, 64)
-    input_size = (num_in_channels,) + im_size
-    device_token = "cuda" if torch.cuda.is_available() else "cpu"
-    device = torch.device(device_token)
-
-    in_image = np.random.randint(256, size=input_size[1:] + (input_size[0],), dtype=np.uint8)
-    in_image2 = np.random.randint(256, size=input_size[1:] + (input_size[0],), dtype=np.uint8)
-    preprocessor = CNNPreProcessor()
-    in_t = preprocessor.preprocess(in_image).to(device)
-    in_t2 = preprocessor.preprocess(in_image2).to(device)
-
-    in_t_b = torch.cat([in_t, in_t2])
-
-    model = VariationalAutoEncoder.get_basic_vae(input_shape=input_size).to(device)
-
-    out_t, mu_t, log_var_t = model(in_t)
-    out_t_b, mu_t_b, log_var_t_b = model(in_t_b)
-
-    def kl_loss(mu, log_var):
-        return torch.mean(-0.5 * torch.sum(1 + log_var - mu ** 2 - torch.exp(log_var), dim=1))
-
-    mse_loss = F.mse_loss(in_t_b, out_t_b)
-
-    kl_loss = kl_loss(mu_t_b, log_var_t_b)
-    print("")
-
-
-def sequence_experiments():
-    num_in_channels = 3
-    im_size = (64, 64)
-    seq_len = 10
-    batch_size = 4
-    rnn_dim = 128
-
-    num_actions = 3
-    leave_one_out = True
-    action_dim = num_actions - 1 if leave_one_out else num_actions
-
-    input_size = (num_in_channels,) + im_size
-    device_token = "cuda" if torch.cuda.is_available() else "cpu"
-    device = torch.device(device_token)
-    preprocessor = CNNPreProcessor()
-
-    def generate_fake_sequence(s_len):
-        return [np.random.randint(256, size=input_size[1:] + (input_size[0],), dtype=np.uint8) for _ in range(s_len)]
-
-    def generate_fake_batch(b_len, pre, devc):
-        ims = [np.random.randint(256, size=input_size[1:] + (input_size[0],), dtype=np.uint8) for _ in range(b_len)]
-        return torch.cat([pre.preprocess(el) for el in ims]).to(devc)
-
-    def generate_fake_action_sequence(s_len, n_actions, leave_one_out=True):
-        from data import one_hot_encode
-        return [one_hot_encode(np.random.randint(n_actions), n_actions, leave_one_out=leave_one_out) for _ in
-                range(s_len)]
-
-    fake_batch = []
-    for _ in range(batch_size):
-        seq = generate_fake_sequence(seq_len)
-        seq_ts = [preprocessor.preprocess(el).to(device).unsqueeze(1) for el in seq]
-        seq_ts = torch.cat(seq_ts)
-        fake_batch.append(seq_ts)
-
-    fake_action_batch = []
-    for _ in range(batch_size):
-        a_seq = generate_fake_action_sequence(seq_len, num_actions, leave_one_out=leave_one_out)
-        a_seq_ts = [torch.from_numpy(el).unsqueeze(0).unsqueeze(0).type(torch.float32).to(device) for el in a_seq]
-        a_seq_ts = torch.cat(a_seq_ts)
-        fake_action_batch.append(a_seq_ts)
-
-    action_in_t = torch.cat(fake_action_batch, dim=1)
-    in_t = torch.cat(fake_batch, dim=1)
-
-    fake_gt = generate_fake_batch(batch_size, preprocessor, device)
-
-    model = SequencePredictor(input_size, build_basic_encoder(), build_basic_decoder(), rnn_dim,
-                              action_dim=action_dim, bidirectional_rnn=True, rnn_layers=2).to(device)
-
-    model_out = model(in_t, action_in_t)
-
-    loss = F.mse_loss(fake_gt, model_out)
-
-    loss.backward()
-
-    print("")
-
-
-if __name__ == "__main__":
-    # vae_experiments()
-    sequence_experiments()
